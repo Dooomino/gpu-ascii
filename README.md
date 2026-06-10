@@ -1,25 +1,27 @@
+[中文](README_zh.md) | English
+
 # GPU-ASCII
 
-GPU 加速的图像转 ASCII 工具 + 终端游戏引擎
+GPU-accelerated image-to-ASCII converter + terminal game engine
 
-使用 wgpu 计算着色器在 GPU 上并行处理图像，通过 BT.709 感知亮度算法将像素映射为 ASCII 字符。支持静态图像转换和实时游戏模式渲染，提供完整的 Python 游戏引擎框架。
+Uses wgpu compute shaders to process images in parallel on the GPU, mapping pixels to ASCII characters via the BT.709 perceptual luminance algorithm. Supports static image conversion and real-time game mode rendering, with a complete Python game engine framework.
 
-## 特性
+## Features
 
-- **GPU 加速** — wgpu 计算着色器并行处理，sRGB gamma 校正 + BT.709 感知亮度
-- **彩色输出** — ColorShader 同时输出字符索引和 RGB 颜色
-- **游戏模式** — 备用屏幕 + 脏区域检测，无闪烁动态刷新
-- **自适应终端** — 根据图像和终端大小自动计算最优 cell_size，补偿字符 2:1 高宽比
-- **多种字符集** — 预设 5 种字符集，支持自定义
-- **游戏引擎框架** — 游戏循环、输入系统、场景栈、精灵动画
-- **跨语言调用** — C ABI FFI 接口，Python ctypes 零依赖调用
+- **GPU Acceleration** — wgpu compute shaders with sRGB gamma correction + BT.709 perceptual luminance
+- **Color Output** — ColorShader outputs both character indices and RGB colors
+- **Game Mode** — Alternate screen + dirty region detection for flicker-free dynamic refresh
+- **Adaptive Terminal** — Auto-calculates optimal cell_size based on image and terminal dimensions, compensates for 2:1 character aspect ratio
+- **Multiple Charsets** — 5 built-in presets, with custom support
+- **Game Engine Framework** — Game loop, input system, scene stack, sprite animation
+- **Cross-language** — C ABI FFI interface, Python ctypes zero-dependency calls
 
-## 快速开始
+## Quick Start
 
-### 构建
+### Build
 
 ```bash
-# 需要 Rust 工具链 + Visual Studio Build Tools (MSVC)
+# Requires Rust toolchain + Visual Studio Build Tools (MSVC)
 cargo build --release
 ```
 
@@ -36,19 +38,19 @@ gpu-ascii image.png -o output.txt
 ```python
 from gpu_ascii import GpuAscii, image_to_ascii
 
-# 快速转换
+# Quick conversion
 text = image_to_ascii("image.png", fit_terminal=True)
 print(text)
 
-# 详细控制
+# Fine-grained control
 gpu = GpuAscii()
 result = gpu.convert_to_terminal("image.png")
 print(result.text)
 ```
 
-## 游戏引擎
+## Game Engine
 
-### 游戏循环
+### Game Loop
 
 ```python
 from gpu_ascii import GpuAscii, GameRenderer, GameLoop, InputManager
@@ -68,7 +70,7 @@ while game_loop.begin_frame():
 renderer.cleanup()
 ```
 
-### 场景管理
+### Scene Management
 
 ```python
 from gpu_ascii import Scene, SceneManager
@@ -76,7 +78,7 @@ from gpu_ascii import Scene, SceneManager
 class GameScene(Scene):
     def update(self, delta_time):
         pass
-    
+
     def render(self, renderer):
         renderer.update_to_terminal("game.png")
 
@@ -84,7 +86,7 @@ scene_mgr = SceneManager()
 scene_mgr.push_scene(GameScene())
 ```
 
-### 精灵动画
+### Sprite Animation
 
 ```python
 from gpu_ascii import SpriteSheet, SpriteAnimator
@@ -92,7 +94,7 @@ from gpu_ascii import SpriteSheet, SpriteAnimator
 sprite_sheet = SpriteSheet.from_gif_frames("test_gif/")
 animator = SpriteAnimator(sprite_sheet, frame_rate=20.0, loop=True)
 
-# 游戏循环中
+# In game loop
 animator.update(delta_time)
 frame = animator.get_current_frame()
 renderer.update_to_terminal(frame.path)
@@ -100,91 +102,91 @@ renderer.update_to_terminal(frame.path)
 
 ## API
 
-### 核心类
+### Core Classes
 
-| 类 | 说明 |
+| Class | Description |
 |---|---|
-| `GpuAscii` | GPU 上下文，图像转 ASCII |
-| `GameRenderer` | 游戏渲染器，脏区域检测 |
-| `GameLoop` | 帧时间管理，FPS 控制 |
-| `InputManager` | 键盘输入检测 |
-| `Scene` / `SceneManager` | 场景栈管理 |
-| `SpriteSheet` / `SpriteAnimator` | 精灵帧和动画 |
+| `GpuAscii` | GPU context, image-to-ASCII conversion |
+| `GameRenderer` | Game renderer with dirty region detection |
+| `GameLoop` | Frame timing, FPS control |
+| `InputManager` | Keyboard input detection |
+| `Scene` / `SceneManager` | Scene stack management |
+| `SpriteSheet` / `SpriteAnimator` | Sprite frames and animation |
 
-### GameRenderer 方法
+### GameRenderer Methods
 
-| 方法 | 说明 |
+| Method | Description |
 |---|---|
-| `init()` | 初始化（备用屏幕） |
-| `init_debug()` | 初始化（调试模式） |
-| `update(path, cell_size)` | 从文件渲染一帧 |
-| `update_to_terminal(path)` | 自动适配终端渲染 |
-| `update_from_memory(rgba, w, h)` | 从内存数据渲染 |
-| `cleanup()` | 恢复终端状态 |
+| `init()` | Initialize (alternate screen) |
+| `init_debug()` | Initialize (debug mode) |
+| `update(path, cell_size)` | Render one frame from file |
+| `update_to_terminal(path)` | Auto-fit terminal render |
+| `update_from_memory(rgba, w, h)` | Render from memory data |
+| `cleanup()` | Restore terminal state |
 
-### 字符集
+### Charsets
 
-| 常量 | 值 |
+| Constant | Value |
 |---|---|
 | `DEFAULT_CHAR_RAMP` | `" .:-=+*#%@"` |
 | `DENSE_CHAR_RAMP` | `" .:;+=xX$#@█"` |
 | `MINIMAL_CHAR_RAMP` | `" ·░█"` |
 | `BLOCK_CHAR_RAMP` | `" ░▒▓█"` |
 
-## 示例
+## Examples
 
-| 文件 | 说明 |
+| File | Description |
 |---|---|
-| `python/example.py` | 基础使用 |
-| `python/example_game.py` | 游戏模式（GIF 播放） |
-| `python/example_engine.py` | 引擎综合示例 |
-| `python/test_engine.py` | 功能测试 |
-| `python/debug_frames.py` | 逐帧调试 |
+| `python/example.py` | Basic usage |
+| `python/example_game.py` | Game mode (GIF playback) |
+| `python/example_engine.py` | Engine comprehensive example |
+| `python/test_engine.py` | Functional tests |
+| `python/debug_frames.py` | Frame-by-frame debug |
 
-## 项目结构
+## Project Structure
 
 ```
 gpu-ascii/
 ├── Cargo.toml
 ├── shaders/
-│   ├── ascii.wgsl              # 字符索引着色器
-│   └── ascii_color.wgsl        # 字符索引+颜色着色器
+│   ├── ascii.wgsl              # Character index shader
+│   └── ascii_color.wgsl        # Character index + color shader
 ├── src/
-│   ├── main.rs                 # CLI 入口
-│   ├── lib.rs                  # 库根模块
-│   ├── ffi.rs                  # C ABI FFI 接口
+│   ├── main.rs                 # CLI entry
+│   ├── lib.rs                  # Library root module
+│   ├── ffi.rs                  # C ABI FFI interface
 │   ├── ascii/
-│   │   ├── converter.rs        # GPU 转换器
-│   │   ├── renderer.rs         # 静态渲染器
-│   │   └── game_renderer.rs    # 游戏渲染器
+│   │   ├── converter.rs        # GPU converter
+│   │   ├── renderer.rs         # Static renderer
+│   │   └── game_renderer.rs    # Game renderer
 │   ├── cli/
-│   │   ├── args.rs             # CLI 参数定义
+│   │   ├── args.rs             # CLI argument definitions
 │   │   └── mod.rs
 │   └── gpu/
-│       ├── context.rs          # GPU 上下文
-│       └── shader.rs           # 计算管线
+│       ├── context.rs          # GPU context
+│       └── shader.rs           # Compute pipeline
 └── python/
     ├── __init__.py
-    ├── gpu_ascii.py            # Python 绑定
-    └── example*.py             # 示例脚本
+    ├── gpu_ascii.py            # Python bindings
+    └── example*.py             # Example scripts
 ```
 
-## 依赖
+## Dependencies
 
 ### Rust
 
-| 依赖 | 用途 |
+| Dependency | Purpose |
 |---|---|
-| wgpu 24.0 | GPU 计算 |
-| image 0.25 | 图像处理 |
-| crossterm 0.28 | 终端控制 |
-| clap 4.5 | CLI 参数 |
-| tokio 1.42 | 异步运行时 |
+| wgpu 24.0 | GPU compute |
+| image 0.25 | Image processing |
+| crossterm 0.28 | Terminal control |
+| clap 4.5 | CLI arguments |
+| tokio 1.42 | Async runtime |
 
 ### Python
 
-无第三方依赖，通过 ctypes 调用 Rust 动态库。
+No third-party dependencies — calls the Rust dynamic library via ctypes.
 
-## 许可证
+## License
 
 MIT
