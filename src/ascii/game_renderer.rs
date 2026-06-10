@@ -2,7 +2,7 @@ use anyhow::Result;
 use crossterm::{
     cursor,
     style::{self},
-    terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen, size},
     ExecutableCommand,
 };
 use std::io::{self, Write};
@@ -14,17 +14,20 @@ pub struct GameRenderer {
     frame_count: u64,
     prev_grid: Option<Vec<Vec<char>>>,
     use_alternate: bool,
+    terminal_height: u16,
 }
 
 impl GameRenderer {
     /// 创建新的游戏渲染器
     pub fn new(_use_color: bool) -> Self {
+        let terminal_height = size().map(|(_, h)| h).unwrap_or(24);
         Self {
             output: io::stdout(),
             initialized: false,
             frame_count: 0,
             prev_grid: None,
             use_alternate: true,
+            terminal_height,
         }
     }
 
@@ -62,25 +65,28 @@ impl GameRenderer {
         // 移动到左上角
         self.output.execute(cursor::MoveTo(0, 0))?;
 
-        let rows = grid.len();
+        let rows = grid.len().min(self.terminal_height as usize);
         let cols = grid.first().map_or(0, |r| r.len());
 
-        // 渲染每一行
-        for (y, row) in grid.iter().enumerate() {
+        // 渲染每一行（限制在终端高度内）
+        for y in 0..rows {
             self.output.execute(cursor::MoveTo(0, y as u16))?;
-            for &ch in row {
-                write!(self.output, "{}", ch)?;
-            }
-            // 用空格填充行尾
-            for _ in row.len()..cols {
-                write!(self.output, " ")?;
+            if let Some(row) = grid.get(y) {
+                for &ch in row {
+                    write!(self.output, "{}", ch)?;
+                }
+                // 用空格填充行尾
+                for _ in row.len()..cols {
+                    write!(self.output, " ")?;
+                }
             }
         }
 
         // 清除可能的旧行（如果新帧比旧帧少行）
         if let Some(ref prev) = self.prev_grid {
-            if rows < prev.len() {
-                for y in rows..prev.len() {
+            let prev_rows = prev.len().min(self.terminal_height as usize);
+            if rows < prev_rows {
+                for y in rows..prev_rows {
                     self.output.execute(cursor::MoveTo(0, y as u16))?;
                     for _ in 0..cols {
                         write!(self.output, " ")?;
@@ -102,9 +108,9 @@ impl GameRenderer {
             return self.render_frame(grid);
         }
 
-        let new_rows = grid.len();
+        let new_rows = grid.len().min(self.terminal_height as usize);
         let new_cols = grid.first().map_or(0, |r| r.len());
-        let prev_rows = prev_grid.len();
+        let prev_rows = prev_grid.len().min(self.terminal_height as usize);
         let prev_cols = prev_grid.first().map_or(0, |r| r.len());
         let max_rows = new_rows.max(prev_rows);
         let max_cols = new_cols.max(prev_cols);
@@ -155,6 +161,11 @@ impl GameRenderer {
     /// 获取已渲染帧数
     pub fn frame_count(&self) -> u64 {
         self.frame_count
+    }
+
+    /// 设置终端高度限制
+    pub fn set_terminal_height(&mut self, height: u16) {
+        self.terminal_height = height;
     }
 }
 

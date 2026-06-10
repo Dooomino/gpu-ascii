@@ -188,6 +188,13 @@ class GpuAscii:
         # game_renderer_get_frame_count
         self._lib.game_renderer_get_frame_count.restype = ctypes.c_uint64
         self._lib.game_renderer_get_frame_count.argtypes = [ctypes.c_void_p]
+        
+        # game_renderer_set_terminal_height
+        self._lib.game_renderer_set_terminal_height.restype = None
+        self._lib.game_renderer_set_terminal_height.argtypes = [
+            ctypes.c_void_p,  # handle
+            ctypes.c_uint32,  # height
+        ]
     
     def get_image_info(self, image_path: str) -> Tuple[int, int]:
         """
@@ -604,6 +611,15 @@ class GameRenderer:
             帧数
         """
         return self._gpu._lib.game_renderer_get_frame_count(self._handle)
+    
+    def set_terminal_height(self, height: int):
+        """
+        设置终端高度限制，防止输出超出终端导致滚动
+        
+        Args:
+            height: 终端行数
+        """
+        self._gpu._lib.game_renderer_set_terminal_height(self._handle, height)
     
     def __del__(self):
         """释放资源"""

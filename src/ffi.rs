@@ -549,3 +549,14 @@ pub extern "C" fn game_renderer_get_frame_count(handle: *mut GameRendererHandle)
     let handle_ref = unsafe { &*handle };
     handle_ref.renderer.frame_count()
 }
+
+#[no_mangle]
+pub extern "C" fn game_renderer_set_terminal_height(
+    handle: *mut GameRendererHandle,
+    height: u32,
+) {
+    if !handle.is_null() {
+        let handle_ref = unsafe { &mut *handle };
+        handle_ref.renderer.set_terminal_height(height as u16);
+    }
+}
