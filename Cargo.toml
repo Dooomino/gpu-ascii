@@ -1,0 +1,40 @@
+[package]
+name = "gpu-ascii"
+version = "0.1.0"
+edition = "2021"
+description = "GPU-accelerated image to ASCII art converter"
+license = "MIT"
+
+[lib]
+name = "gpu_ascii"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+# GPU计算
+wgpu = "24.0"
+pollster = "0.4"
+
+# 图像处理
+image = "0.25"
+
+# 终端控制
+crossterm = "0.28"
+
+# 数据处理
+bytemuck = { version = "1.19", features = ["derive"] }
+
+# 错误处理
+anyhow = "1.0"
+
+# 通道通信
+flume = "0.11"
+
+# 命令行参数
+clap = { version = "4.5", features = ["derive"] }
+
+# 异步运行时
+tokio = { version = "1.42", features = ["full"] }
+
+[profile.release]
+opt-level = 3
+lto = true
