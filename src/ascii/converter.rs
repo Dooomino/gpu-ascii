@@ -56,8 +56,10 @@ impl AsciiConverter {
 
         let indices = self.shader.execute(&self.gpu, &texture, &params)?;
         
+        // 水平方向：每个cell显示 cell_size 像素
+        // 垂直方向：每个cell显示 cell_size * 2 像素（因为ASCII字符高度是宽度的2倍）
         let grid_width = (width / cell_size) as usize;
-        let grid_height = (height / cell_size) as usize;
+        let grid_height = (height / (cell_size * 2)) as usize;
         let chars: Vec<char> = char_ramp.chars().collect();
         
         let mut result = Vec::with_capacity(grid_height);

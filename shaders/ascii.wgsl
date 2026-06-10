@@ -27,7 +27,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cellX = gid.x;
     let cellY = gid.y;
     let gridW = params.width / params.cellSize;
-    let gridH = params.height / params.cellSize;
+    // 垂直方向使用 cellSize * 2（因为ASCII字符高度是宽度的2倍）
+    let cellHeight = params.cellSize * 2u;
+    let gridH = params.height / cellHeight;
     
     if (cellX >= gridW || cellY >= gridH) {
         return;
@@ -36,16 +38,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // 对cell内所有像素求平均亮度
     var sum: f32 = 0.0;
     let startX = cellX * params.cellSize;
-    let startY = cellY * params.cellSize;
+    let startY = cellY * cellHeight;
     
-    for (var dy: u32 = 0u; dy < params.cellSize; dy++) {
+    for (var dy: u32 = 0u; dy < cellHeight; dy++) {
         for (var dx: u32 = 0u; dx < params.cellSize; dx++) {
             let px = textureLoad(inputTex, vec2<i32>(i32(startX + dx), i32(startY + dy)), 0);
             sum += luminance(px.r, px.g, px.b);
         }
     }
     
-    let avgLum = sum / f32(params.cellSize * params.cellSize);
+    let avgLum = sum / f32(params.cellSize * cellHeight);
     
     // 量化到字符索引
     let charIdx = u32(avgLum * f32(params.charCount - 1u));
