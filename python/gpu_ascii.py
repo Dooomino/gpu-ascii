@@ -6,9 +6,12 @@ GPU ASCII - Python绑定
 import ctypes
 import os
 import sys
+import time
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Set, List, Any, Callable
+from abc import ABC, abstractmethod
+from enum import Enum
 
 
 @dataclass
@@ -170,6 +173,21 @@ class GpuAscii:
             ctypes.c_uint32,   # cell_size
             ctypes.c_char_p,   # char_ramp
         ]
+        
+        # game_renderer_update_from_memory
+        self._lib.game_renderer_update_from_memory.restype = FrameInfoStruct
+        self._lib.game_renderer_update_from_memory.argtypes = [
+            ctypes.c_void_p,   # handle
+            ctypes.POINTER(ctypes.c_uint8),  # rgba_data
+            ctypes.c_uint32,   # width
+            ctypes.c_uint32,   # height
+            ctypes.c_uint32,   # cell_size
+            ctypes.c_char_p,   # char_ramp
+        ]
+        
+        # game_renderer_get_frame_count
+        self._lib.game_renderer_get_frame_count.restype = ctypes.c_uint64
+        self._lib.game_renderer_get_frame_count.argtypes = [ctypes.c_void_p]
     
     def get_image_info(self, image_path: str) -> Tuple[int, int]:
         """
@@ -531,8 +549,470 @@ class GameRenderer:
         
         return self.update(image_path, cell_size)
     
+    def update_from_memory(
+        self,
+        rgba_data: bytes,
+        width: int,
+        height: int,
+        cell_size: int = 8,
+        char_ramp: str = " .:-=+*#%@",
+    ) -> FrameInfo:
+        """
+        从内存数据更新一帧
+        
+        Args:
+            rgba_data: RGBA像素数据
+            width: 图像宽度
+            height: 图像高度
+            cell_size: 单元格大小
+            char_ramp: 字符集
+            
+        Returns:
+            FrameInfo包含脏区域统计信息
+        """
+        ramp_bytes = char_ramp.encode("utf-8")
+        
+        # 将bytes转换为ctypes数组
+        data_array = (ctypes.c_uint8 * len(rgba_data))(*rgba_data)
+        
+        result = self._gpu._lib.game_renderer_update_from_memory(
+            self._handle,
+            data_array,
+            width,
+            height,
+            cell_size,
+            ramp_bytes,
+        )
+        
+        if result.error:
+            error_msg = ctypes.cast(result.error, ctypes.c_char_p).value.decode("utf-8")
+            self._gpu._lib.gpu_ascii_free_string(result.error)
+            raise RuntimeError(error_msg)
+        
+        return FrameInfo(
+            dirty_cells=result.dirty_cells,
+            total_cells=result.total_cells,
+            grid_width=result.grid_width,
+            grid_height=result.grid_height,
+        )
+    
+    def get_frame_count(self) -> int:
+        """
+        获取已渲染帧数
+        
+        Returns:
+            帧数
+        """
+        return self._gpu._lib.game_renderer_get_frame_count(self._handle)
+    
     def __del__(self):
         """释放资源"""
         if hasattr(self, '_handle') and self._handle:
             self._gpu._lib.game_renderer_free(self._handle)
             self._handle = None
+
+
+# ==================== 游戏循环 ====================
+
+class Clock:
+    """高精度时钟"""
+    
+    def __init__(self):
+        self._start_time = time.perf_counter()
+        self._last_time = self._start_time
+        self._delta = 0.0
+    
+    def tick(self) -> float:
+        current = time.perf_counter()
+        self._delta = current - self._last_time
+        self._last_time = current
+        return self._delta
+    
+    @property
+    def delta(self) -> float:
+        return self._delta
+    
+    @property
+    def elapsed(self) -> float:
+        return time.perf_counter() - self._start_time
+    
+    def reset(self):
+        self._start_time = time.perf_counter()
+        self._last_time = self._start_time
+        self._delta = 0.0
+
+
+class GameLoop:
+    """
+    游戏循环管理器
+    
+    使用示例:
+        game_loop = GameLoop(target_fps=30)
+        while game_loop.begin_frame():
+            delta = game_loop.delta_time
+            # 更新和渲染
+            game_loop.end_frame()
+    """
+    
+    def __init__(self, target_fps: int = 30):
+        self.target_fps = target_fps
+        self._clock = Clock()
+        self._frame_count = 0
+        self._fps_update_time = 0.0
+        self._fps_frame_count = 0
+        self._current_fps = 0.0
+        self._delta_time = 0.0
+        self._running = False
+        self._frame_start_time = 0.0
+    
+    def begin_frame(self) -> bool:
+        if not self._running:
+            self._running = True
+            self._clock.reset()
+        
+        self._frame_start_time = time.perf_counter()
+        self._delta_time = self._clock.tick()
+        self._frame_count += 1
+        
+        self._fps_frame_count += 1
+        current_time = time.perf_counter()
+        if current_time - self._fps_update_time >= 1.0:
+            self._current_fps = self._fps_frame_count / (current_time - self._fps_update_time)
+            self._fps_frame_count = 0
+            self._fps_update_time = current_time
+        
+        return True
+    
+    def end_frame(self):
+        if self.target_fps > 0:
+            frame_time = time.perf_counter() - self._frame_start_time
+            target_time = 1.0 / self.target_fps
+            sleep_time = target_time - frame_time
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+    
+    @property
+    def delta_time(self) -> float:
+        return self._delta_time
+    
+    @property
+    def fps(self) -> float:
+        return self._current_fps
+    
+    @property
+    def frame_count(self) -> int:
+        return self._frame_count
+    
+    def stop(self):
+        self._running = False
+    
+    def reset(self):
+        self._clock.reset()
+        self._frame_count = 0
+        self._fps_update_time = 0.0
+        self._fps_frame_count = 0
+        self._current_fps = 0.0
+        self._delta_time = 0.0
+        self._running = False
+
+
+# ==================== 输入系统 ====================
+
+class EventType(Enum):
+    KEY_PRESS = "key_press"
+    KEY_RELEASE = "key_release"
+    MOUSE_CLICK = "mouse_click"
+
+
+@dataclass
+class Event:
+    type: EventType
+    key: Optional[str] = None
+    x: Optional[int] = None
+    y: Optional[int] = None
+
+
+class InputManager:
+    """
+    输入管理器
+    
+    使用示例:
+        input_mgr = InputManager()
+        if input_mgr.is_key_pressed('q'):
+            break
+    """
+    
+    def __init__(self):
+        self._pressed_keys: Set[str] = set()
+        self._just_pressed_keys: Set[str] = set()
+        self._just_released_keys: Set[str] = set()
+        self._mouse_x: int = 0
+        self._mouse_y: int = 0
+        self._has_msvcrt = False
+        
+        try:
+            import msvcrt
+            self._has_msvcrt = True
+        except ImportError:
+            pass
+    
+    def update(self):
+        self._just_pressed_keys.clear()
+        self._just_released_keys.clear()
+        
+        if sys.platform == 'win32' and self._has_msvcrt:
+            import msvcrt
+            while msvcrt.kbhit():
+                try:
+                    key = msvcrt.getch().decode('utf-8', errors='ignore')
+                    if key not in self._pressed_keys:
+                        self._just_pressed_keys.add(key)
+                    self._pressed_keys.add(key)
+                except:
+                    pass
+    
+    def is_key_pressed(self, key: str) -> bool:
+        return key in self._pressed_keys
+    
+    def is_key_just_pressed(self, key: str) -> bool:
+        return key in self._just_pressed_keys
+    
+    def is_key_just_released(self, key: str) -> bool:
+        return key in self._just_released_keys
+    
+    def get_mouse_position(self) -> Tuple[int, int]:
+        return self._mouse_x, self._mouse_y
+    
+    def clear(self):
+        self._pressed_keys.clear()
+        self._just_pressed_keys.clear()
+        self._just_released_keys.clear()
+
+
+class KeyReader:
+    @staticmethod
+    def read_key() -> str:
+        if sys.platform == 'win32':
+            import msvcrt
+            return msvcrt.getch().decode('utf-8', errors='ignore')
+        else:
+            import tty, termios
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                ch = sys.stdin.read(1)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            return ch
+
+
+# ==================== 场景系统 ====================
+
+class Scene(ABC):
+    """场景基类"""
+    
+    def __init__(self, name: str = ""):
+        self.name = name
+        self._data: Dict[str, Any] = {}
+    
+    def on_enter(self):
+        pass
+    
+    def on_exit(self):
+        pass
+    
+    def on_pause(self):
+        pass
+    
+    def on_resume(self):
+        pass
+    
+    @abstractmethod
+    def update(self, delta_time: float):
+        pass
+    
+    @abstractmethod
+    def render(self, renderer):
+        pass
+    
+    def set_data(self, key: str, value: Any):
+        self._data[key] = value
+    
+    def get_data(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
+
+
+class SceneManager:
+    """场景管理器"""
+    
+    def __init__(self):
+        self._scenes: List[Scene] = []
+    
+    @property
+    def current_scene(self) -> Optional[Scene]:
+        return self._scenes[-1] if self._scenes else None
+    
+    @property
+    def scene_count(self) -> int:
+        return len(self._scenes)
+    
+    def push_scene(self, scene: Scene):
+        if self._scenes:
+            self._scenes[-1].on_pause()
+        self._scenes.append(scene)
+        scene.on_enter()
+    
+    def pop_scene(self):
+        if not self._scenes:
+            return
+        current = self._scenes.pop()
+        current.on_exit()
+        if self._scenes:
+            self._scenes[-1].on_resume()
+    
+    def switch_scene(self, scene: Scene):
+        if self._scenes:
+            current = self._scenes.pop()
+            current.on_exit()
+        self._scenes.append(scene)
+        scene.on_enter()
+    
+    def clear_scenes(self):
+        while self._scenes:
+            scene = self._scenes.pop()
+            scene.on_exit()
+    
+    def update(self, delta_time: float):
+        if self._scenes:
+            self._scenes[-1].update(delta_time)
+    
+    def render(self, renderer):
+        if self._scenes:
+            self._scenes[-1].render(renderer)
+
+
+# ==================== 精灵和动画 ====================
+
+@dataclass
+class SpriteFrame:
+    path: str
+    frame_index: int
+    ascii_result: Optional[AsciiResult] = None
+
+
+class SpriteSheet:
+    """精灵表"""
+    
+    def __init__(self, frames: List[SpriteFrame], gpu: Optional['GpuAscii'] = None):
+        self._frames = frames
+        self._gpu = gpu or GpuAscii()
+        self._cache: Dict[tuple, AsciiResult] = {}
+    
+    @classmethod
+    def from_gif_frames(cls, gif_dir: str, pattern: str = r'frame_(\d+)_delay-[\d.]+s\.gif') -> 'SpriteSheet':
+        import re
+        gif_path = Path(gif_dir)
+        if not gif_path.exists():
+            raise FileNotFoundError(f"Directory not found: {gif_dir}")
+        
+        frames = []
+        regex = re.compile(pattern)
+        
+        for file in sorted(gif_path.glob("*.gif")):
+            match = regex.match(file.name)
+            if match:
+                frame_num = int(match.group(1))
+                frames.append(SpriteFrame(path=str(file), frame_index=frame_num))
+        
+        if not frames:
+            raise ValueError(f"No matching frames found in {gif_dir}")
+        
+        frames.sort(key=lambda f: f.frame_index)
+        return cls(frames)
+    
+    @classmethod
+    def from_images(cls, image_paths: List[str]) -> 'SpriteSheet':
+        frames = [SpriteFrame(path=p, frame_index=i) for i, p in enumerate(image_paths)]
+        return cls(frames)
+    
+    @property
+    def frame_count(self) -> int:
+        return len(self._frames)
+    
+    def get_frame(self, index: int) -> SpriteFrame:
+        return self._frames[index % len(self._frames)]
+    
+    def get_ascii_result(self, index: int, cell_size: int = 8, char_ramp: str = " .:-=+*#%@") -> AsciiResult:
+        cache_key = (index, cell_size, char_ramp)
+        if cache_key not in self._cache:
+            frame = self.get_frame(index)
+            self._cache[cache_key] = self._gpu.convert(frame.path, cell_size, char_ramp)
+        return self._cache[cache_key]
+
+
+class SpriteAnimator:
+    """精灵动画器"""
+    
+    def __init__(self, sprite_sheet: SpriteSheet, frame_rate: float = 10.0, loop: bool = True):
+        self.sprite_sheet = sprite_sheet
+        self.frame_rate = frame_rate
+        self.loop = loop
+        self._current_frame = 0
+        self._elapsed_time = 0.0
+        self._playing = True
+        self._finished = False
+    
+    @property
+    def current_frame_index(self) -> int:
+        return self._current_frame
+    
+    @property
+    def is_playing(self) -> bool:
+        return self._playing
+    
+    @property
+    def is_finished(self) -> bool:
+        return self._finished
+    
+    def play(self):
+        self._playing = True
+        self._finished = False
+    
+    def pause(self):
+        self._playing = False
+    
+    def stop(self):
+        self._playing = False
+        self._current_frame = 0
+        self._elapsed_time = 0.0
+        self._finished = False
+    
+    def reset(self):
+        self._current_frame = 0
+        self._elapsed_time = 0.0
+        self._finished = False
+    
+    def update(self, delta_time: float):
+        if not self._playing or self._finished:
+            return
+        
+        self._elapsed_time += delta_time
+        frame_duration = 1.0 / self.frame_rate if self.frame_rate > 0 else 0.0
+        
+        if frame_duration > 0:
+            frames_to_advance = int(self._elapsed_time / frame_duration)
+            if frames_to_advance > 0:
+                self._elapsed_time -= frames_to_advance * frame_duration
+                self._current_frame += frames_to_advance
+                
+                if self._current_frame >= self.sprite_sheet.frame_count:
+                    if self.loop:
+                        self._current_frame %= self.sprite_sheet.frame_count
+                    else:
+                        self._current_frame = self.sprite_sheet.frame_count - 1
+                        self._playing = False
+                        self._finished = True
+    
+    def get_current_frame(self) -> SpriteFrame:
+        return self.sprite_sheet.get_frame(self._current_frame)

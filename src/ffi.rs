@@ -416,3 +416,136 @@ pub extern "C" fn game_renderer_update(
         error: ptr::null_mut(),
     }
 }
+
+#[no_mangle]
+pub extern "C" fn game_renderer_update_from_memory(
+    handle: *mut GameRendererHandle,
+    rgba_data: *const u8,
+    width: u32,
+    height: u32,
+    cell_size: u32,
+    char_ramp: *const c_char,
+) -> FrameInfo {
+    if handle.is_null() || rgba_data.is_null() {
+        return FrameInfo {
+            dirty_cells: 0,
+            total_cells: 0,
+            grid_width: 0,
+            grid_height: 0,
+            error: CString::new("Invalid handle or data").unwrap().into_raw(),
+        };
+    }
+
+    if width == 0 || height == 0 {
+        return FrameInfo {
+            dirty_cells: 0,
+            total_cells: 0,
+            grid_width: 0,
+            grid_height: 0,
+            error: CString::new("Invalid dimensions").unwrap().into_raw(),
+        };
+    }
+
+    let handle_ref = unsafe { &mut *handle };
+
+    let ramp = if char_ramp.is_null() {
+        " .:-=+*#%@"
+    } else {
+        match unsafe { CStr::from_ptr(char_ramp) }.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                return FrameInfo {
+                    dirty_cells: 0,
+                    total_cells: 0,
+                    grid_width: 0,
+                    grid_height: 0,
+                    error: CString::new(format!("Invalid ramp: {}", e)).unwrap().into_raw(),
+                };
+            }
+        }
+    };
+
+    // 从内存创建图像
+    let data_len = (width * height * 4) as usize;
+    let data = unsafe { std::slice::from_raw_parts(rgba_data, data_len) };
+    let rgba_image = match image::RgbaImage::from_raw(width, height, data.to_vec()) {
+        Some(img) => img,
+        None => {
+            return FrameInfo {
+                dirty_cells: 0,
+                total_cells: 0,
+                grid_width: 0,
+                grid_height: 0,
+                error: CString::new("Failed to create image from buffer").unwrap().into_raw(),
+            };
+        }
+    };
+
+    let image = image::DynamicImage::ImageRgba8(rgba_image);
+
+    let grid = match handle_ref.converter.convert(&image, cell_size, ramp) {
+        Ok(g) => g,
+        Err(e) => {
+            return FrameInfo {
+                dirty_cells: 0,
+                total_cells: 0,
+                grid_width: 0,
+                grid_height: 0,
+                error: CString::new(format!("Conversion failed: {}", e)).unwrap().into_raw(),
+            };
+        }
+    };
+
+    let grid_height = grid.len() as u32;
+    let grid_width = grid.first().map_or(0, |row| row.len() as u32);
+    let total_cells = grid_width * grid_height;
+
+    let dirty_cells = if let Some(ref prev) = handle_ref.prev_frame {
+        let mut count = 0;
+        for (y, row) in grid.iter().enumerate() {
+            for (x, &ch) in row.iter().enumerate() {
+                if prev.get(y).and_then(|r| r.get(x)) != Some(&ch) {
+                    count += 1;
+                }
+            }
+        }
+        count
+    } else {
+        total_cells
+    };
+
+    let render_result = if handle_ref.prev_frame.is_some() {
+        handle_ref.renderer.render_dirty(&grid, handle_ref.prev_frame.as_ref().unwrap())
+    } else {
+        handle_ref.renderer.render_frame(&grid)
+    };
+
+    if let Err(e) = render_result {
+        return FrameInfo {
+            dirty_cells: 0,
+            total_cells,
+            grid_width,
+            grid_height,
+            error: CString::new(format!("Render failed: {}", e)).unwrap().into_raw(),
+        };
+    }
+
+    handle_ref.prev_frame = Some(grid);
+
+    FrameInfo {
+        dirty_cells,
+        total_cells,
+        grid_width,
+        grid_height,
+        error: ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn game_renderer_get_frame_count(handle: *mut GameRendererHandle) -> u64 {
+    if handle.is_null() {
+        return 0;
+    }
+    let handle_ref = unsafe { &*handle };
+    handle_ref.renderer.frame_count()
+}
