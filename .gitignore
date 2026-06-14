@@ -1,2 +1,8 @@
 /target/*
 __pycache__/
+
+# Python runtime generated
+python/assets/_frame_tmp.png
+python/assets/screenshots/*.png
+python/examples/output.txt
+.codegraph/

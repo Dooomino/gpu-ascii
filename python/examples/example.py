@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # 添加当前目录到Python路径
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from gpu_ascii import GpuAscii, image_to_ascii
 
@@ -23,7 +23,7 @@ def find_test_image():
         script_dir,
         Path.cwd(),
         script_dir.parent,
-        Path(r"D:\Projects\CLI Engine\gpu-ascii\python"),
+
     ]
     
     for dir_path in search_dirs:

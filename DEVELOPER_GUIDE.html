@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPU-ASCII 开发者文档</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-code: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --sidebar-w: 260px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    position: fixed; top: 0; left: 0;
+    width: var(--sidebar-w); height: 100vh;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 24px 16px;
+    z-index: 100;
+  }
+  .sidebar h2 { font-size: 18px; margin-bottom: 6px; color: var(--accent); }
+  .sidebar .subtitle { font-size: 12px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.4; }
+  .sidebar nav a {
+    display: block; padding: 4px 10px;
+    color: var(--text-dim); text-decoration: none;
+    font-size: 13px; border-radius: 6px;
+    transition: background .15s, color .15s;
+  }
+  .sidebar nav a:hover { background: var(--bg); color: var(--text); }
+  .sidebar nav a.active { background: var(--accent-dim); color: #fff; }
+  .sidebar nav .indent { padding-left: 26px; font-size: 12.5px; }
+
+  /* ── Main ── */
+  .main { margin-left: var(--sidebar-w); max-width: 880px; padding: 40px 48px 80px; }
+
+  /* ── Typography ── */
+  h1 { font-size: 32px; margin-bottom: 8px; color: #fff; }
+  h2 { font-size: 24px; margin-top: 48px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); color: var(--accent); }
+  h3 { font-size: 18px; margin-top: 32px; margin-bottom: 12px; color: var(--green); }
+  h4 { font-size: 15px; margin-top: 24px; margin-bottom: 8px; color: var(--orange); }
+  p { margin-bottom: 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { color: #fff; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  ul, ol { margin: 0 0 16px 24px; }
+  li { margin-bottom: 4px; }
+  li ul { margin-top: 4px; margin-bottom: 4px; }
+
+  /* ── Code ── */
+  code {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 13px; background: var(--bg-code);
+    padding: 2px 6px; border-radius: 4px; color: var(--purple);
+  }
+  pre {
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px;
+    overflow-x: auto; margin-bottom: 16px; position: relative;
+  }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 13px; line-height: 1.6; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 14px; }
+  th { background: var(--bg-code); text-align: left; padding: 8px 12px; border: 1px solid var(--border); color: var(--accent); font-weight: 600; white-space: nowrap; }
+  td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(88,166,255,.04); }
+
+  /* ── Callouts ── */
+  .note, .warn, .tip {
+    border-radius: 8px; padding: 14px 18px;
+    margin-bottom: 16px; font-size: 14px; border-left: 4px solid;
+  }
+  .note  { background: rgba(88,166,255,.08);  border-color: var(--accent); }
+  .warn  { background: rgba(210,153,34,.08);  border-color: var(--orange); }
+  .tip   { background: rgba(63,185,80,.08);   border-color: var(--green); }
+  .note::before  { content: "📘 "; }
+  .warn::before  { content: "⚠️ "; }
+  .tip::before   { content: "💡 "; }
+
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; vertical-align: middle; }
+  .tag-win  { background: rgba(88,166,255,.15); color: var(--accent); }
+  .tag-rust { background: rgba(210,153,34,.15); color: var(--orange); }
+  .tag-py   { background: rgba(63,185,80,.15);  color: var(--green); }
+
+  /* ── File tree ── */
+  .tree {
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 13px; line-height: 1.8;
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px;
+    margin-bottom: 16px; overflow-x: auto; white-space: pre;
+  }
+  .tree .comment { color: var(--text-dim); }
+
+  /* ── Architecture diagram ── */
+  .arch-diagram {
+    background: var(--bg-code); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 24px;
+    margin-bottom: 16px; overflow-x: auto;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 13px; line-height: 1.6; white-space: pre;
+  }
+  .arch-diagram .box   { color: var(--accent); }
+  .arch-diagram .arrow { color: var(--text-dim); }
+  .arch-diagram .label { color: var(--green); }
+  .arch-diagram .dim   { color: var(--text-dim); }
+  .arch-diagram .py    { color: var(--green); }
+  .arch-diagram .rust  { color: var(--orange); }
+  .arch-diagram .gpu   { color: var(--purple); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════ Sidebar ════════════════════ -->
+<aside class="sidebar">
+  <h2>GPU-ASCII</h2>
+  <div class="subtitle">开发者文档 v0.2.0</div>
+  <nav id="nav">
+    <a href="#overview">概述</a>
+    <a href="#architecture">架构</a>
+    <a href="#requirements">环境要求</a>
+    <a href="#build">构建</a>
+    <a href="#cli">CLI 用法</a>
+    <a href="#quickstart">快速开始</a>
+    <a href="#api">Python API 参考</a>
+    <a href="#gpuascii" class="indent">GpuAscii</a>
+    <a href="#gamerenderer" class="indent">GameRenderer</a>
+    <a href="#gameloop" class="indent">GameLoop</a>
+    <a href="#inputmanager" class="indent">InputManager</a>
+    <a href="#rawkeyboard" class="indent">RawKeyboard</a>
+    <a href="#scene" class="indent">Scene / SceneManager</a>
+    <a href="#sprite" class="indent">SpriteSheet / Animator</a>
+    <a href="#examples">示例说明</a>
+    <a href="#structure">项目结构</a>
+    <a href="#notes">注意事项</a>
+    <a href="#troubleshoot">故障排查</a>
+  </nav>
+</aside>
+
+<!-- ════════════════════ Main Content ════════════════════ -->
+<div class="main">
+
+<h1 id="overview">GPU-ASCII 开发者文档</h1>
+<p>GPU 加速的图像转 ASCII 工具 + 终端游戏引擎框架。<br>
+底层使用 Rust + wgpu compute shader 并行处理图像，通过 C ABI FFI 导出动态库，Python 端通过 ctypes 零依赖调用。</p>
+
+<hr>
+
+<!-- ── 架构 ── -->
+<h2 id="architecture">架构</h2>
+
+<h3>处理流水线</h3>
+
+<div class="arch-diagram"><span class="dim">┌─────────────────────────────────────────────────────────────────┐</span>
+<span class="dim">│</span>                      <span class="box">GPU-ASCII 处理流水线</span>                       <span class="dim">│</span>
+<span class="dim">├─────────────────────────────────────────────────────────────────┤</span>
+<span class="dim">│</span>                                                                 <span class="dim">│</span>
+<span class="dim">│</span>  <span class="py">输入图像</span>     <span class="dim">───→</span>  <span class="rust">image crate 解码</span>  <span class="dim">──→</span>  <span class="rust">RGBA8 像素数据</span>     <span class="dim">│</span>
+<span class="dim">│</span>  (png/jpg/...)        (Rust CPU)             (width×height)      <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">│</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">↓</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>                    <span class="rust">wgpu queue.write_texture()</span>                   <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">│</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">↓</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">┌─────────────────────────────────────────────┐</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="gpu">GPU Compute Shader (WGSL)</span>                  <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="dim">·</span> 每个 workgroup: 8×8 线程                   <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="dim">·</span> BT.709 感知亮度算法                       <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="dim">·</span> sRGB gamma 校正                          <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="dim">·</span> cell_size×cell_size 区域取平均亮度          <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">│</span>  <span class="dim">·</span> 输出: 字符索引 (u32) / ColorOutput (u32×4) <span class="dim">│</span>                <span class="dim">│</span>
+<span class="dim">│</span>  <span class="dim">└─────────────────────────────────────────────┘</span>                <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">│</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">↓</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>  <span class="rust">staging_buffer</span>  <span class="dim">──→</span>  <span class="rust">map_async + poll</span>  <span class="dim">──→</span>  <span class="rust">Vec&lt;u32&gt; 索引</span>      <span class="dim">│</span>
+<span class="dim">│</span>  (GPU→CPU 回读)        (同步等待)             (grid 网格)         <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">│</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>                              <span class="dim">↓</span>                                   <span class="dim">│</span>
+<span class="dim">│</span>  <span class="rust">Vec&lt;Vec&lt;char&gt;&gt;</span>   <span class="dim">──→</span>  <span class="rust">crossterm 终端输出</span>                       <span class="dim">│</span>
+<span class="dim">│</span>  (ASCII 字符网格)     <span class="dim">·</span> cursor::MoveTo 定位                      <span class="dim">│</span>
+<span class="dim">│</span>                      <span class="dim">·</span> 脏区域检测 (render_dirty)                  <span class="dim">│</span>
+<span class="dim">│</span>                      <span class="dim">·</span> 备用屏幕 (alternate screen)                <span class="dim">│</span>
+<span class="dim">│</span>                                                                 <span class="dim">│</span>
+<span class="dim">└─────────────────────────────────────────────────────────────────┘</span></div>
+
+<h3>Rust 模块依赖</h3>
+
+<div class="arch-diagram"><span class="rust">GpuContext</span>          <span class="dim">── wgpu Device + Queue + Adapter</span>
+  <span class="dim">↑</span>
+<span class="rust">AsciiShader</span>         <span class="dim">── ascii.wgsl compute pipeline (字符索引)</span>
+<span class="rust">ColorShader</span>         <span class="dim">── ascii_color.wgsl compute pipeline (字符+颜色)</span>
+  <span class="dim">↑</span>
+<span class="rust">AsciiConverter</span>      <span class="dim">── 组合 GpuContext + AsciiShader，暴露 convert()</span>
+  <span class="dim">↑</span>
+<span class="rust">AsciiRenderer</span>       <span class="dim">── 静态终端输出 (CLI 模式)</span>
+<span class="rust">GameRenderer</span>        <span class="dim">── 动态终端输出 + 脏区域检测 (游戏模式)</span>
+  <span class="dim">↑</span>
+<span class="rust">FFI Layer</span>           <span class="dim">── extern "C" 函数，暴露给 Python ctypes</span>
+  <span class="dim">↑</span>
+<span class="py">GpuAscii</span>            <span class="dim">── Python 类，管理 handle 生命周期</span>
+<span class="py">GameRenderer</span>        <span class="dim">── Python 类，管理游戏渲染 handle</span></div>
+
+<h3>脏区域检测机制</h3>
+<p>游戏模式下，每帧的 ASCII 网格与上一帧逐字符比较。只有发生变化的字符格才通过 <code>cursor::MoveTo</code> 定位重写，避免全屏刷新导致的闪烁。</p>
+<div class="arch-diagram"><span class="dim">// src/ascii/game_renderer.rs render_dirty() 核心逻辑</span>
+
+<span class="rust">for y</span> <span class="dim">in</span> 0..max_rows {
+    <span class="rust">for x</span> <span class="dim">in</span> 0..max_cols {
+        <span class="dim">if</span> <span class="green">new_grid</span>[y][x] <span class="dim">!=</span> <span class="orange">prev_grid</span>[y][x] {
+            <span class="dim">// 只光标定位到变化位置，写入新字符</span>
+            output.<span class="rust">execute</span>(cursor::MoveTo(x, y))?;
+            write!(output, <span class="string">"{}"</span>, new_ch)?;
+        }
+    }
+}</div>
+
+<h3>两个着色器</h3>
+<table>
+  <tr><th>着色器</th><th>文件</th><th>输出</th><th>用途</th></tr>
+  <tr><td><code>AsciiShader</code></td><td><code>shaders/ascii.wgsl</code></td><td><code>Vec&lt;u32&gt;</code> 字符索引</td><td>默认模式，ASCII 黑白输出</td></tr>
+  <tr><td><code>ColorShader</code></td><td><code>shaders/ascii_color.wgsl</code></td><td><code>Vec&lt;ColorOutput&gt;</code> (索引 + RGB)</td><td><code>--color</code> 模式，彩色 ASCII 输出</td></tr>
+</table>
+<p><code>ColorOutput</code> 结构体: <code>{ char_idx: u32, r: u32, g: u32, b: u32 }</code>，每个字符格同时输出字符索引和该区域的平均颜色。</p>
+
+<hr>
+
+<!-- ── 环境要求 ── -->
+<h2 id="requirements">环境要求</h2>
+
+<h4><span class="tag tag-rust">Rust</span> 端</h4>
+<ul>
+  <li>Rust toolchain (rustup)</li>
+  <li>Visual Studio Build Tools (MSVC linker)，Windows 必须</li>
+  <li>支持 Vulkan / DX12 / Metal 的 GPU（wgpu 自动选择后端，优先 <code>HighPerformance</code> 适配器）</li>
+</ul>
+
+<h4><span class="tag tag-py">Python</span> 端</h4>
+<ul>
+  <li>Python &gt;= 3.8</li>
+  <li>无第三方依赖（纯 ctypes 调用动态库）</li>
+  <li><code>PIL</code> / <code>Pillow</code> 仅平台跳跃游戏 (<code>game.py</code>) 需要</li>
+</ul>
+
+<!-- ── 构建 ── -->
+<h2 id="build">构建</h2>
+
+<pre><code># 在项目根目录
+cargo build --release</code></pre>
+
+<table>
+  <tr><th>平台</th><th>动态库路径</th></tr>
+  <tr><td>Windows</td><td><code>target/release/gpu_ascii.dll</code></td></tr>
+  <tr><td>Linux</td><td><code>target/release/libgpu_ascii.so</code></td></tr>
+  <tr><td>macOS</td><td><code>target/release/libgpu_ascii.dylib</code></td></tr>
+</table>
+
+<p>Python 绑定自动搜索路径：</p>
+<ol>
+  <li><code>target/release/</code></li>
+  <li><code>target/debug/</code></li>
+  <li>运行时 <code>cwd/target/release/</code> 和 <code>cwd/target/debug/</code></li>
+</ol>
+
+<p>手动指定：</p>
+<pre><code>gpu = GpuAscii(lib_path="/path/to/gpu_ascii.dll")</code></pre>
+
+<!-- ── CLI ── -->
+<h2 id="cli">CLI 用法</h2>
+
+<pre><code>gpu-ascii &lt;IMAGE&gt; [OPTIONS]</code></pre>
+
+<table>
+  <tr><th>参数</th><th>缩写</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>&lt;IMAGE&gt;</code></td><td>—</td><td>必填</td><td>输入图像路径</td></tr>
+  <tr><td><code>--cell-size &lt;N&gt;</code></td><td><code>-c</code></td><td>8</td><td>每个 ASCII 字符对应的像素块大小</td></tr>
+  <tr><td><code>--ramp &lt;PRESET&gt;</code></td><td><code>-r</code></td><td>default</td><td>字符集预设: <code>default</code> / <code>dense</code> / <code>minimal</code> / <code>block</code> / <code>detailed</code></td></tr>
+  <tr><td><code>--custom-ramp &lt;STR&gt;</code></td><td>—</td><td>—</td><td>自定义字符集（覆盖 <code>--ramp</code>）</td></tr>
+  <tr><td><code>--color</code></td><td><code>-C</code></td><td>off</td><td>彩色输出（使用 ColorShader）</td></tr>
+  <tr><td><code>--width &lt;N&gt;</code></td><td><code>-w</code></td><td>自动</td><td>输出宽度（字符数）</td></tr>
+  <tr><td><code>--height &lt;N&gt;</code></td><td>—</td><td>自动</td><td>输出高度（字符数）</td></tr>
+  <tr><td><code>--output &lt;PATH&gt;</code></td><td><code>-o</code></td><td>stdout</td><td>输出到文件</td></tr>
+</table>
+
+<h4>内置字符集预设</h4>
+<table>
+  <tr><th>预设名</th><th>字符集</th></tr>
+  <tr><td><code>default</code></td><td><code>" .:-=+*#%@"</code></td></tr>
+  <tr><td><code>dense</code></td><td><code>" .:;+=xX$#@█"</code></td></tr>
+  <tr><td><code>minimal</code></td><td><code>" ·░█"</code></td></tr>
+  <tr><td><code>block</code></td><td><code>" ░▒▓█"</code></td></tr>
+  <tr><td><code>detailed</code></td><td><code>" .'`^\",:;Il!i><~+_-?][}{1)(|\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"</code></td></tr>
+</table>
+
+<h4>示例</h4>
+<pre><code># 基础转换
+gpu-ascii photo.png
+
+# 小 cell + 密集字符集 + 彩色
+gpu-ascii photo.png -c 4 -r dense --color
+
+# 输出到文件
+gpu-ascii photo.png -o output.txt
+
+# 自定义字符集
+gpu-ascii photo.png --custom-ramp " .oO@"</code></pre>
+
+<!-- ── 快速开始 ── -->
+<h2 id="quickstart">快速开始</h2>
+
+<h3>静态图像转换</h3>
+<pre><code>import sys
+sys.path.insert(0, "python")   # 或者把 python/ 加入 PYTHONPATH
+
+from gpu_ascii import GpuAscii, image_to_ascii
+
+# 方式 1: 便捷函数（一行搞定）
+text = image_to_ascii("photo.png", cell_size=8)
+print(text)
+
+# 方式 2: 自动适配终端大小
+text = image_to_ascii("photo.png", fit_terminal=True)
+print(text)
+
+# 方式 3: 完整控制
+gpu = GpuAscii()
+result = gpu.convert(
+    image_path="photo.png",
+    cell_size=16,
+    char_ramp=" .:;+=xX$#@█",
+    use_color=False,
+)
+print(f"ASCII 尺寸: {result.width}x{result.height}")
+print(result.text)</code></pre>
+
+<h3>游戏模式（动态刷新）</h3>
+<pre><code>from gpu_ascii import GpuAscii, GameRenderer, GameLoop
+
+gpu = GpuAscii()
+renderer = GameRenderer(gpu)
+game_loop = GameLoop(target_fps=30)
+
+renderer.init()  # 进入备用屏幕，隐藏光标
+try:
+    while game_loop.begin_frame():
+        renderer.update_to_terminal("frame.png")
+        game_loop.end_frame()
+finally:
+    renderer.cleanup()  # 恢复终端</code></pre>
+
+<!-- ════════════════════ API Reference ════════════════════ -->
+<h2 id="api">Python API 参考</h2>
+<p>所有 Python API 位于 <code>python/gpu_ascii.py</code>（1035 行），通过 <code>python/__init__.py</code> 统一导出。</p>
+
+<!-- ── GpuAscii ── -->
+<h3 id="gpuascii">GpuAscii — 核心转换器</h3>
+<p>GPU 上下文，封装 Rust 侧的 <code>GpuAsciiHandle</code>（包含 <code>AsciiConverter</code>）。负责图像到 ASCII 的转换。</p>
+<pre><code>class GpuAscii(lib_path: str | None = None)</code></pre>
+
+<table>
+  <tr><th>方法</th><th>签名</th><th>说明</th></tr>
+  <tr><td><code>get_image_info</code></td><td><code>(image_path: str) -&gt; (int, int)</code></td><td>返回图像 (width, height)，不进行 GPU 转换</td></tr>
+  <tr><td><code>calc_cell_size</code></td><td><code>(img_w, img_h, term_w?, term_h?) -&gt; int</code></td><td>根据图像和终端尺寸计算最优 cell_size（考虑 2:1 字符高宽比）</td></tr>
+  <tr><td><code>convert</code></td><td><code>(image_path, cell_size=8, char_ramp=" .:-=+*#%@", use_color=False) -&gt; AsciiResult</code></td><td>GPU 转换图像为 ASCII</td></tr>
+  <tr><td><code>convert_to_terminal</code></td><td><code>(image_path, char_ramp, use_color, terminal_width?, terminal_height?, padding=1) -&gt; AsciiResult</code></td><td>自动适配终端大小转换</td></tr>
+</table>
+
+<h4>AsciiResult</h4>
+<pre><code>@dataclass
+class AsciiResult:
+    text: str      # ASCII 文本（换行分隔）
+    width: int     # 输出列数
+    height: int    # 输出行数</code></pre>
+
+<h4>char_ramp 规则</h4>
+<p>字符串从左到右对应从暗到亮的像素亮度。空格 = 最暗（背景），最后一个字符 = 最亮。字符数量影响亮度分级精度。GPU 着色器会对每个 cell_size×cell_size 区域计算 BT.709 感知亮度，然后映射到字符索引。</p>
+
+<!-- ── GameRenderer ── -->
+<h3 id="gamerenderer">GameRenderer — 游戏模式渲染器</h3>
+<p>封装 Rust 侧的 <code>GameRendererHandle</code>（包含 <code>AsciiConverter</code> + <code>GameRenderer</code> + <code>prev_frame</code>）。支持单页面动态渲染，脏区域检测只重绘变化的字符格。支持 <code>with</code> 语句。</p>
+<pre><code>class GameRenderer(gpu: GpuAscii, char_ramp: str = " .:-=+*#%@")</code></pre>
+
+<table>
+  <tr><th>方法</th><th>签名</th><th>说明</th></tr>
+  <tr><td><code>init</code></td><td><code>()</code></td><td>进入备用屏幕（<code>EnterAlternateScreen</code>），隐藏光标，清屏</td></tr>
+  <tr><td><code>init_debug</code></td><td><code>()</code></td><td>调试模式（不进入备用屏幕，隐藏光标，清屏，可与 <code>input()</code> 配合）</td></tr>
+  <tr><td><code>update</code></td><td><code>(image_path, cell_size=8) -&gt; FrameInfo</code></td><td>加载图像 → GPU 转换 → 脏区域检测 → 渲染到终端</td></tr>
+  <tr><td><code>update_to_terminal</code></td><td><code>(image_path, padding=1) -&gt; FrameInfo</code></td><td>自动计算 cell_size 后渲染</td></tr>
+  <tr><td><code>update_from_memory</code></td><td><code>(rgba_data: bytes, w, h, cell_size, char_ramp) -&gt; FrameInfo</code></td><td>从内存 RGBA 数据渲染（适合程序化生成画面）</td></tr>
+  <tr><td><code>get_frame_count</code></td><td><code>() -&gt; int</code></td><td>已渲染帧数</td></tr>
+  <tr><td><code>set_terminal_height</code></td><td><code>(height: int)</code></td><td>限制输出行数，防止滚动</td></tr>
+  <tr><td><code>cleanup</code></td><td><code>()</code></td><td>显示光标，重置颜色，退出备用屏幕（如果使用了 <code>init()</code>）</td></tr>
+</table>
+
+<h4>FrameInfo</h4>
+<pre><code>@dataclass
+class FrameInfo:
+    dirty_cells: int   # 本帧变化的字符格数
+    total_cells: int   # 总字符格数
+    grid_width: int    # 网格列数
+    grid_height: int   # 网格行数</code></pre>
+
+<h4>update() 内部流程</h4>
+<div class="arch-diagram"><span class="py">update(image_path, cell_size)</span>
+  <span class="dim">│</span>
+  <span class="dim">├→</span> <span class="rust">image::open(path)</span>           <span class="dim">// 加载图像</span>
+  <span class="dim">├→</span> <span class="rust">converter.convert(img, cell)</span>  <span class="dim">// GPU 转换 → Vec&lt;Vec&lt;char&gt;&gt;</span>
+  <span class="dim">├→</span> <span class="rust">dirty_cells = 逐格比较 prev</span>   <span class="dim">// 脏区域计算</span>
+  <span class="dim">├→</span> <span class="rust">renderer.render_dirty(grid)</span>  <span class="dim">// 只重写变化的字符</span>
+  <span class="dim">└→</span> <span class="dim">return FrameInfo</span></div>
+
+<div class="note">
+  <strong>init() vs init_debug()：</strong><br>
+  <code>init()</code> 执行 <code>EnterAlternateScreen</code> + <code>Clear(All)</code> + <code>Hide</code>，适合正式游戏。<br>
+  <code>init_debug()</code> 只执行 <code>Clear(All)</code> + <code>Hide</code>，不切换屏幕，适合开发调试。<br>
+  两者<strong>不能混用</strong>，一个实例只能 init 一次（除非 cleanup 后重新 init）。<br>
+  Rust 侧的 <code>GameRenderer</code> 实现了 <code>Drop</code>，析构时自动调用 <code>cleanup()</code>。
+</div>
+
+<!-- ── GameLoop ── -->
+<h3 id="gameloop">GameLoop — 帧循环管理</h3>
+<p>控制帧率、计算 delta_time、统计 FPS。使用 <code>time.perf_counter()</code> 高精度计时。</p>
+<pre><code>class GameLoop(target_fps: int = 30)</code></pre>
+
+<table>
+  <tr><th>属性 / 方法</th><th>类型</th><th>说明</th></tr>
+  <tr><td><code>begin_frame()</code></td><td><code>-&gt; bool</code></td><td>帧开始，重置 delta_time，返回 True</td></tr>
+  <tr><td><code>end_frame()</code></td><td><code>()</code></td><td>帧结束，自动 <code>time.sleep()</code> 补齐到目标帧率</td></tr>
+  <tr><td><code>delta_time</code></td><td><code>float</code></td><td>当前帧与上一帧的时间差（秒）</td></tr>
+  <tr><td><code>fps</code></td><td><code>float</code></td><td>实时 FPS（每秒更新一次）</td></tr>
+  <tr><td><code>frame_count</code></td><td><code>int</code></td><td>累计帧数</td></tr>
+  <tr><td><code>stop()</code></td><td><code>()</code></td><td>停止循环</td></tr>
+  <tr><td><code>reset()</code></td><td><code>()</code></td><td>重置所有状态</td></tr>
+</table>
+
+<pre><code>game_loop = GameLoop(target_fps=30)
+while game_loop.begin_frame():
+    dt = game_loop.delta_time
+    # 更新逻辑...
+    # 渲染...
+    game_loop.end_frame()</code></pre>
+
+<!-- ── InputManager ── -->
+<h3 id="inputmanager">InputManager — 键盘输入</h3>
+<p>基于 <code>msvcrt</code> 的键盘输入检测 <span class="tag tag-win">Windows</span></p>
+<pre><code>class InputManager()</code></pre>
+
+<table>
+  <tr><th>方法</th><th>说明</th></tr>
+  <tr><td><code>update()</code></td><td>每帧调用，清空 just_pressed/just_released，读取缓冲区中的新按键</td></tr>
+  <tr><td><code>is_key_pressed(key) -&gt; bool</code></td><td>按键是否处于按下状态</td></tr>
+  <tr><td><code>is_key_just_pressed(key) -&gt; bool</code></td><td>本帧是否刚按下</td></tr>
+  <tr><td><code>is_key_just_released(key) -&gt; bool</code></td><td>本帧是否刚松开</td></tr>
+  <tr><td><code>get_mouse_position() -&gt; (int, int)</code></td><td>鼠标坐标（预留，当前返回 0,0）</td></tr>
+  <tr><td><code>clear()</code></td><td>清除所有按键状态</td></tr>
+</table>
+
+<div class="warn">
+  <code>InputManager</code> 基于 <code>msvcrt.kbhit()</code> / <code>msvcrt.getch()</code>，仅支持 Windows，且<strong>不支持方向键</strong>等特殊键。如需方向键支持，请使用 <code>RawKeyboard</code>。
+</div>
+
+<!-- ── RawKeyboard ── -->
+<h3 id="rawkeyboard">RawKeyboard — Win32 原始键盘</h3>
+<p>使用 <code>GetAsyncKeyState</code> 轮询硬件按键状态，支持方向键、空格等所有键。 <span class="tag tag-win">Windows</span></p>
+<pre><code>from rawkb import RawKeyboard
+kb = RawKeyboard()</code></pre>
+
+<table>
+  <tr><th>方法</th><th>说明</th></tr>
+  <tr><td><code>poll()</code></td><td>每帧调用，遍历所有 VK 码更新 prev/curr 状态，计算 just_pressed/just_released</td></tr>
+  <tr><td><code>is_down(key) -&gt; bool</code></td><td>当前是否按住（<code>GetAsyncKeyState</code> 最高位）</td></tr>
+  <tr><td><code>just_pressed(key) -&gt; bool</code></td><td>本帧是否刚按下（curr=true, prev=false）</td></tr>
+  <tr><td><code>just_released(key) -&gt; bool</code></td><td>本帧是否刚松开（curr=false, prev=true）</td></tr>
+</table>
+
+<h4>支持的按键名</h4>
+<ul>
+  <li>字母: <code>'a'</code> ~ <code>'z'</code>（不区分大小写）</li>
+  <li>数字: <code>'0'</code> ~ <code>'9'</code></li>
+  <li>方向键: <code>'left'</code>, <code>'right'</code>, <code>'up'</code>, <code>'down'</code></li>
+  <li>功能键: <code>'space'</code>, <code>'enter'</code>, <code>'esc'</code>, <code>'tab'</code>, <code>'backspace'</code></li>
+  <li>修饰键: <code>'shift'</code>, <code>'ctrl'</code>, <code>'alt'</code></li>
+  <li>F键: <code>'f1'</code> ~ <code>'f12'</code></li>
+</ul>
+
+<h4>与 InputManager 的区别</h4>
+<table>
+  <tr><th>特性</th><th>InputManager</th><th>RawKeyboard</th></tr>
+  <tr><td>底层</td><td>msvcrt getch 缓冲区</td><td>GetAsyncKeyState 硬件轮询</td></tr>
+  <tr><td>方向键</td><td>❌ 不支持</td><td>✅ 支持</td></tr>
+  <tr><td>多键同时按下</td><td>❌ 不支持</td><td>✅ 支持</td></tr>
+  <tr><td>非 Windows</td><td>有限支持</td><td>❌ 不支持</td></tr>
+  <tr><td>依赖</td><td>gpu_ascii.py 内置</td><td>独立模块 rawkb.py</td></tr>
+</table>
+
+<!-- ── Scene / SceneManager ── -->
+<h3 id="scene">Scene / SceneManager — 场景栈</h3>
+<p>场景管理器，基于列表实现的栈结构，支持 push / pop / switch。</p>
+
+<pre><code>class Scene(ABC):
+    name: str
+    def on_enter(self): ...      # 进入场景时
+    def on_exit(self): ...       # 离开场景时
+    def on_pause(self): ...      # 被压入栈下方时
+    def on_resume(self): ...     # 从栈下方恢复时
+    def update(self, delta_time: float): ...  # 必须实现
+    def render(self, renderer): ...           # 必须实现
+    def set_data(key, value): ...             # 场景内数据存储
+    def get_data(key, default=None): ...</code></pre>
+
+<pre><code>class SceneManager()</code></pre>
+
+<table>
+  <tr><th>方法</th><th>说明</th></tr>
+  <tr><td><code>push_scene(scene)</code></td><td>压入新场景（当前场景 <code>on_pause</code>）</td></tr>
+  <tr><td><code>pop_scene()</code></td><td>弹出顶部场景（当前 <code>on_exit</code>，下方 <code>on_resume</code>）</td></tr>
+  <tr><td><code>switch_scene(scene)</code></td><td>替换顶部场景（当前 <code>on_exit</code>，新场景 <code>on_enter</code>）</td></tr>
+  <tr><td><code>clear_scenes()</code></td><td>弹出所有场景（每个 <code>on_exit</code>）</td></tr>
+  <tr><td><code>update(delta_time)</code></td><td>更新当前（顶部）场景</td></tr>
+  <tr><td><code>render(renderer)</code></td><td>渲染当前（顶部）场景</td></tr>
+  <tr><td><code>current_scene</code></td><td>当前场景（属性，栈空返回 <code>None</code>）</td></tr>
+  <tr><td><code>scene_count</code></td><td>场景栈深度（属性）</td></tr>
+</table>
+
+<pre><code>class MenuScene(Scene):
+    def __init__(self):
+        super().__init__("menu")
+
+    def update(self, delta_time):
+        pass
+
+    def render(self, renderer):
+        renderer.update_to_terminal("menu_bg.png")</code></pre>
+
+<!-- ── SpriteSheet / SpriteAnimator ── -->
+<h3 id="sprite">SpriteSheet / SpriteAnimator — 精灵动画</h3>
+<p>精灵表和帧动画控制器。<code>SpriteSheet</code> 内部维护一个 <code>_cache</code> 字典缓存已转换的 ASCII 结果。</p>
+
+<pre><code>class SpriteSheet(frames: list[SpriteFrame], gpu: GpuAscii | None = None)</code></pre>
+
+<table>
+  <tr><th>类方法</th><th>说明</th></tr>
+  <tr><td><code>from_gif_frames(gif_dir, pattern)</code></td><td>从 GIF 帧目录加载（默认正则: <code>frame_(\d+)_delay-([\d.]+)s\.gif</code>）</td></tr>
+  <tr><td><code>from_images(image_paths)</code></td><td>从图片路径列表加载</td></tr>
+</table>
+
+<table>
+  <tr><th>方法 / 属性</th><th>说明</th></tr>
+  <tr><td><code>frame_count -&gt; int</code></td><td>帧数</td></tr>
+  <tr><td><code>get_frame(index) -&gt; SpriteFrame</code></td><td>获取帧（支持循环索引: <code>index % len</code>）</td></tr>
+  <tr><td><code>get_ascii_result(index, cell_size, char_ramp) -&gt; AsciiResult</code></td><td>获取转换结果（带缓存，key = <code>(index, cell_size, char_ramp)</code>）</td></tr>
+</table>
+
+<pre><code>class SpriteAnimator(sprite_sheet, frame_rate=10.0, loop=True)</code></pre>
+
+<table>
+  <tr><th>方法 / 属性</th><th>说明</th></tr>
+  <tr><td><code>update(delta_time)</code></td><td>推进动画时间，按 <code>frame_rate</code> 计算帧进位</td></tr>
+  <tr><td><code>get_current_frame() -&gt; SpriteFrame</code></td><td>当前帧</td></tr>
+  <tr><td><code>play()</code> / <code>pause()</code> / <code>stop()</code> / <code>reset()</code></td><td>播放控制</td></tr>
+  <tr><td><code>current_frame_index -&gt; int</code></td><td>当前帧索引</td></tr>
+  <tr><td><code>is_playing -&gt; bool</code></td><td>是否播放中</td></tr>
+  <tr><td><code>is_finished -&gt; bool</code></td><td>是否播放完毕（非循环模式）</td></tr>
+</table>
+
+<h4>SpriteFrame</h4>
+<pre><code>@dataclass
+class SpriteFrame:
+    path: str              # 帧图片路径
+    frame_index: int       # 帧序号
+    ascii_result: AsciiResult | None = None  # 缓存的转换结果</code></pre>
+
+<!-- ── 示例说明 ── -->
+<h2 id="examples">示例说明</h2>
+
+<table>
+  <tr><th>文件</th><th>说明</th><th>运行方式</th></tr>
+  <tr><td><code>python/examples/example.py</code></td><td>静态图像转换（基础 / 高级 / 不同字符集 / 输出到文件）</td><td><code>python python/examples/example.py</code></td></tr>
+  <tr><td><code>python/examples/example_game.py</code></td><td>游戏模式演示（基本循环 / 脏区域检测 / GIF播放 / 轮播 / 逐帧调试）</td><td><code>python python/examples/example_game.py [图片或目录]</code></td></tr>
+  <tr><td><code>python/examples/example_engine.py</code></td><td>引擎综合示例（场景系统 + 精灵动画 + 帧循环 + 按键切换场景）</td><td><code>python python/examples/example_engine.py</code></td></tr>
+  <tr><td><code>python/examples/test_engine.py</code></td><td>功能测试（GameLoop / InputManager / SpriteSheet / GameRenderer）</td><td><code>python python/examples/test_engine.py</code></td></tr>
+  <tr><td><code>python/examples/debug_frames.py</code></td><td>GIF 逐帧调试（按回车推进一帧，<code>init_debug</code> 模式）</td><td><code>python python/examples/debug_frames.py</code></td></tr>
+  <tr><td><code>python/games/platformer/game.py</code></td><td>完整平台跳跃游戏（PIL 合成画面 → <code>_to_ascii()</code> → 终端输出）</td><td><code>python python/games/platformer/game.py</code></td></tr>
+</table>
+
+<div class="tip">所有示例位于 <code>python/examples/</code>，通过 <code>sys.path.insert</code> 向上一级自动定位 <code>gpu_ascii</code> 模块，无需安装。platformer 游戏额外依赖 <code>Pillow</code> 和 <code>rawkb.py</code>。</div>
+
+<h4>路径引用关系</h4>
+<p>各脚本通过 <code>Path(__file__).parent</code> 相对定位资源，整理后关系如下：</p>
+<table>
+  <tr><th>脚本位置</th><th>sys.path 目标</th><th>资源引用</th></tr>
+  <tr>
+    <td><code>examples/*.py</code><br><code>__file__</code> → <code>python/examples/</code></td>
+    <td><code>.parent.parent</code> → <code>python/</code><br>（找到 <code>gpu_ascii.py</code>、<code>rawkb.py</code>）</td>
+    <td><code>.parent / "test_gif"</code>、<code>"test.png"</code>、<code>"output.txt"</code><br>（同在 <code>examples/</code> 目录下）</td>
+  </tr>
+  <tr>
+    <td><code>games/platformer/game.py</code><br><code>__file__</code> → <code>python/games/platformer/</code></td>
+    <td><code>.parent.parent</code> → <code>python/</code><br>（找到 <code>gpu_ascii.py</code>、<code>rawkb.py</code>）</td>
+    <td><code>.parent.parent / "assets"</code> → <code>python/assets/</code><br>（tiles、player、backgrounds）</td>
+  </tr>
+</table>
+
+<!-- ── 项目结构 ── -->
+<h2 id="structure">项目结构</h2>
+
+<div class="tree">gpu-ascii/
+├── Cargo.toml                  <span class="comment"># Rust 项目配置 (wgpu, image, crossterm, clap, tokio)</span>
+├── pyproject.toml              <span class="comment"># Python 包配置</span>
+├── README.md                   <span class="comment"># 英文 README</span>
+├── DEVELOPER_GUIDE.html        <span class="comment"># 本文档</span>
+│
+├── shaders/
+│   ├── ascii.wgsl              <span class="comment"># 字符索引计算着色器 (BT.709 亮度 → 字符索引)</span>
+│   └── ascii_color.wgsl        <span class="comment"># 字符索引 + 颜色着色器 (亮度 + RGB)</span>
+│
+├── src/
+│   ├── main.rs                 <span class="comment"># CLI 入口 (clap Args → AsciiConverter → AsciiRenderer)</span>
+│   ├── lib.rs                  <span class="comment"># 库模块声明 (gpu, ascii, cli, ffi)</span>
+│   ├── ffi.rs                  <span class="comment"># C ABI FFI 导出 (20+ extern "C" 函数)</span>
+│   │                           <span class="comment">#   GpuAsciiHandle, GameRendererHandle</span>
+│   │                           <span class="comment">#   AsciiResult, ImageInfo, FrameInfo 结构体</span>
+│   ├── ascii/
+│   │   ├── converter.rs        <span class="comment"># AsciiConverter: GpuContext + AsciiShader → convert()</span>
+│   │   ├── renderer.rs         <span class="comment"># AsciiRenderer: 静态终端输出 (CLI 模式)</span>
+│   │   │                       <span class="comment">#   render(), render_with_original_color()</span>
+│   │   └── game_renderer.rs    <span class="comment"># GameRenderer: 动态终端输出 + 脏区域检测</span>
+│   │                           <span class="comment">#   render_frame(), render_dirty(), init/cleanup</span>
+│   │                           <span class="comment">#   实现 Drop trait 自动 cleanup</span>
+│   ├── cli/
+│   │   ├── args.rs             <span class="comment"># CLI 参数定义 (clap derive)</span>
+│   │   └── mod.rs
+│   └── gpu/
+│       ├── context.rs          <span class="comment"># GpuContext: wgpu Device + Queue + Adapter</span>
+│       │                       <span class="comment">#   优先 HighPerformance 适配器</span>
+│       ├── shader.rs           <span class="comment"># AsciiShader + ColorShader compute pipeline</span>
+│       │                       <span class="comment">#   8×8 workgroup, staging_buffer 回读</span>
+│       └── mod.rs
+│
+└── python/
+    ├── __init__.py             <span class="comment"># 包入口，导出所有公共 API</span>
+    ├── gpu_ascii.py            <span class="comment"># 核心模块 (1035 行)</span>
+    │                           <span class="comment">#   GpuAscii, GameRenderer, GameLoop, Clock</span>
+    │                           <span class="comment">#   InputManager, KeyReader, Event, EventType</span>
+    │                           <span class="comment">#   Scene, SceneManager</span>
+    │                           <span class="comment">#   SpriteSheet, SpriteAnimator, SpriteFrame</span>
+    │                           <span class="comment">#   image_to_ascii() 便捷函数</span>
+    ├── rawkb.py                <span class="comment"># Win32 原始键盘 (GetAsyncKeyState)</span>
+    ├── examples/
+    │   ├── example.py          <span class="comment"># 静态图像转换示例</span>
+    │   ├── example_engine.py   <span class="comment"># 引擎综合示例</span>
+    │   ├── example_game.py     <span class="comment"># 游戏模式演示</span>
+    │   ├── test_engine.py      <span class="comment"># 功能测试</span>
+    │   ├── debug_frames.py     <span class="comment"># 逐帧调试</span>
+    │   ├── test_gif/           <span class="comment"># 测试用 GIF 帧序列</span>
+    │   ├── test.png            <span class="comment"># 测试图片</span>
+    │   └── character.gif       <span class="comment"># 测试动图</span>
+    ├── games/platformer/game.py<span class="comment"># 平台跳跃游戏 (PIL 合成 + ASCII 渲染)</span>
+    └── assets/                 <span class="comment"># 游戏素材</span>
+        ├── backgrounds/        <span class="comment"># 背景 (cloud, mountain)</span>
+        ├── player/             <span class="comment"># 玩家动画帧 (frame_00~16)</span>
+        ├── tiles/              <span class="comment"># 地形/道具 (grass, stone, coin, ...)</span>
+        └── screenshots/        <span class="comment"># 截图输出目录 (运行时生成, gitignore)</span></div>
+
+<!-- ── 注意事项 ── -->
+<h2 id="notes">注意事项</h2>
+
+<h3>1. 动态库必须先编译</h3>
+<p>Python 绑定依赖 Rust 编译产物 (<code>gpu_ascii.dll</code> / <code>libgpu_ascii.so</code>)。运行任何 Python 脚本前必须先：</p>
+<pre><code>cargo build --release</code></pre>
+
+<h3>2. RawKeyboard 仅 Windows</h3>
+<p><code>rawkb.py</code> 使用 Win32 API <code>GetAsyncKeyState</code>，非 Windows 平台所有方法返回 False。跨平台场景请用 <code>InputManager</code>（基于 <code>msvcrt</code>，功能较弱）。</p>
+
+<h3>3. GameRenderer 的 init() vs init_debug()</h3>
+<ul>
+  <li><code>init()</code> 执行 <code>EnterAlternateScreen</code> + <code>Clear(All)</code> + <code>cursor::Hide</code>，<code>cleanup()</code> 时执行 <code>LeaveAlternateScreen</code></li>
+  <li><code>init_debug()</code> 只执行 <code>Clear(All)</code> + <code>cursor::Hide</code>，不切换屏幕</li>
+  两者<strong>不能混用</strong>，一个实例只能 init 一次（除非 cleanup 后重新 init）。
+</ul>
+
+<h3>4. 资源释放</h3>
+<ul>
+  <li><code>GameRenderer</code> 支持 <code>with</code> 语句，推荐使用</li>
+  <li><code>GpuAscii</code> 在 <code>__del__</code> 中调用 <code>gpu_ascii_free(handle)</code></li>
+  <li><code>GameRenderer</code> 在 <code>__del__</code> 中调用 <code>game_renderer_free(handle)</code></li>
+  <li>Rust 侧 <code>GameRenderer</code> 实现了 <code>Drop</code> trait，析构时自动 <code>cleanup()</code></li>
+  <li><strong>不要</strong>在 <code>GameRenderer</code> 的 <code>__del__</code> 之前调用 <code>GpuAscii</code> 的 <code>__del__</code>，否则会 UAF</li>
+</ul>
+
+<h3>5. cell_size 含义</h3>
+<p><code>cell_size</code> 表示每个 ASCII 字符对应原图的像素块大小。着色器对该区域内的所有像素计算 BT.709 加权平均亮度。垂直方向使用 <code>cell_size × 2</code>（ASCII 字符高宽比约 2:1）。</p>
+<ul>
+  <li>值越小 → 输出越大越精细（更多 GPU 线程）</li>
+  <li>值越大 → 输出越小越粗糙</li>
+  <li><code>calc_cell_size()</code> 自动计算最优值</li>
+</ul>
+
+<h3>6. 线程安全</h3>
+<div class="warn">所有 API 均非线程安全。wgpu 上下文绑定到创建线程。如果需要多线程，每个线程应创建独立的 <code>GpuAscii</code> 实例。</div>
+
+<h3>7. GPU 适配器选择</h3>
+<p>Rust 侧 <code>GpuContext::new()</code> 使用 <code>PowerPreference::HighPerformance</code> 请求适配器，优先选择独立 GPU。如果只有集显，会自动回退。多 GPU 环境下可通过 <code>WGPU_ADAPTER_NAME</code> 环境变量指定。</p>
+
+<h3>8. game.py 额外依赖</h3>
+<p>平台跳跃游戏 (<code>python/games/platformer/game.py</code>) 需要：</p>
+<ul>
+  <li><code>Pillow</code>（PIL）— 画面合成（背景 / 平台 / 金币 / 玩家 → RGBA 画布）</li>
+  <li><code>rawkb.py</code> — 键盘输入（仅 Windows）</li>
+</ul>
+<pre><code>pip install Pillow</code></pre>
+
+<h3>9. GIF 帧文件命名</h3>
+<p><code>SpriteSheet.from_gif_frames()</code> 和部分示例期望 GIF 帧文件名格式：</p>
+<pre><code>frame_00_delay-0.05s.gif
+frame_01_delay-0.05s.gif
+...</code></pre>
+<p>正则: <code>frame_(\d+)_delay-([\d.]+)s\.gif</code></p>
+
+<!-- ── 故障排查 ── -->
+<h2 id="troubleshoot">故障排查</h2>
+
+<table>
+  <tr><th>错误</th><th>原因</th><th>解决方案</th></tr>
+  <tr>
+    <td><code>FileNotFoundError: Cannot find gpu_ascii.dll</code></td>
+    <td>未编译 Rust 库</td>
+    <td>运行 <code>cargo build --release</code></td>
+  </tr>
+  <tr>
+    <td><code>RuntimeError: Failed to initialize GPU context</code></td>
+    <td><code>gpu_ascii_new()</code> 返回 null（GPU 不支持或驱动问题）</td>
+    <td>确认有 Vulkan/DX12/Metal 支持。尝试 <code>WGPU_BACKEND=vulkan</code> 或 <code>WGPU_BACKEND=dx12</code></td>
+  </tr>
+  <tr>
+    <td><code>ImportError: No module named 'gpu_ascii'</code></td>
+    <td>Python 路径未配置</td>
+    <td>在脚本中添加 <code>sys.path.insert(0, "python")</code> 或设置 <code>PYTHONPATH=python</code></td>
+  </tr>
+  <tr>
+    <td><code>AttributeError: module 'msvcrt' has no attribute 'kbhit'</code></td>
+    <td>非 Windows 平台</td>
+    <td><code>InputManager</code> 和 <code>RawKeyboard</code> 仅支持 Windows</td>
+  </tr>
+  <tr>
+    <td>终端输出闪烁</td>
+    <td>每帧打印完整文本（无脏区域检测）</td>
+    <td>使用 <code>GameRenderer</code>，确保调用 <code>init()</code> 而非 <code>init_debug()</code></td>
+  </tr>
+  <tr>
+    <td>ASCII 输出被截断</td>
+    <td>行列数超过终端或 <code>max_rows/max_cols</code></td>
+    <td>检查终端窗口大小，或调整 <code>CELL_SIZE</code>（platformer）</td>
+  </tr>
+  <tr>
+    <td><code>Failed to find suitable GPU adapter</code></td>
+    <td>无可用 GPU</td>
+    <td>确认驱动已安装。尝试 <code>WGPU_FORCE_FALLBACK_ADAPTER=1</code>（软件渲染，性能差）</td>
+  </tr>
+</table>
+
+<hr>
+<p style="text-align:center; color:var(--text-dim); font-size:13px; margin-top:40px;">
+  GPU-ASCII Developer Guide &middot; Generated from project source via CodeGraph
+</p>
+
+</div><!-- .main -->
+
+<script>
+(function() {
+  const links = document.querySelectorAll('#nav a');
+  const sections = [];
+  links.forEach(a => {
+    const id = a.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) sections.push({ el, a });
+  });
+  function update() {
+    let current = sections[0];
+    for (const s of sections) {
+      if (s.el.getBoundingClientRect().top <= 40) current = s;
+    }
+    links.forEach(a => a.classList.remove('active'));
+    if (current) current.a.classList.add('active');
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>

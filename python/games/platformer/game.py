@@ -31,7 +31,7 @@ from typing import List, Tuple, Optional, Dict
 from enum import Enum
 
 # 确保能导入 gpu_ascii
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from gpu_ascii import (
     GpuAscii, GameRenderer, GameLoop,
     Scene, SceneManager, SpriteSheet, SpriteAnimator,
@@ -70,7 +70,7 @@ def measure_terminal_size() -> Tuple[int, int]:
 #  常量
 # ============================================================
 
-ASSETS = Path(__file__).parent.parent.parent / "assets"
+ASSETS = Path(__file__).parent.parent / "assets"
 PLAYER_FRAMES = ASSETS / "player"
 TILES = ASSETS / "tiles"
 BACKGROUNDS = ASSETS / "backgrounds"
